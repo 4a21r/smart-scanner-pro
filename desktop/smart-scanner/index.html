@@ -1,0 +1,361 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>السكانر الذكي – Smart Scanner Pro</title>
+    
+    <!-- الأيقونات والتنسيقات المحلية (تعمل بدون إنترنت 100%) -->
+    <link rel="stylesheet" href="./vendor/fontawesome.min.css">
+    <link rel="stylesheet" href="./style.css">
+    
+    <!-- المكتبات المحلية (Offline) -->
+    <script src="./vendor/tailwind.js"></script>
+    <script src="./vendor/pdf.min.js"></script>
+    <script src="./vendor/jspdf.umd.min.js"></script>
+    
+    <!-- إعدادات Tailwind -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { cairo: ['Arial', 'Tahoma', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            dark: '#0B1120', panel: '#1E293B', primary: '#0D9488',
+                            primaryHover: '#14B8A6', accent: '#38BDF8'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="dark-mode overflow-hidden flex flex-col h-screen">
+
+   <!-- الشريط العلوي الاحترافي -->
+    <div dir="ltr" class="h-9 bg-brand-dark border-b border-gray-800 flex justify-between items-center px-3 text-xs text-gray-300 select-none flex-shrink-0" style="-webkit-app-region: drag;">
+        <!-- العنوان بجهة اليسار -->
+        <div dir="rtl" class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-print text-brand-primary text-sm"></i>
+            <span class="font-bold tracking-wide text-white text-sm">منظومة الماسح الضوئي الذكي والأرشفة</span>
+            <span class="text-gray-500 mx-1">|</span>
+            <span class="text-gray-400">الكتاب الحالي: <b id="current-project-name" class="text-teal-400">كتاب جديد</b> <span id="current-doc-meta" class="text-amber-400 text-[11px] mr-2"></span></span>        </div>
+        <!-- أزرار التحكم بأقصى اليمين بالترتيب القياسي (تصغير، تكبير، إغلاق بالزاوية) -->
+        <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
+            <button onclick="toggleDarkMode()" title="الوضع الداكن/الفاتح" class="hover:text-brand-primary transition cursor-pointer px-2"><i id="theme-icon" class="fa-solid fa-moon"></i></button>
+            <div class="h-4 w-px bg-gray-700 mx-1"></div>
+            <button onclick="minimizeApp()" title="تصغير" class="hover:bg-gray-700 hover:text-white text-gray-300 w-8 h-7 rounded flex items-center justify-center transition cursor-pointer"><i class="fa-solid fa-minus text-xs"></i></button>
+            <button onclick="maximizeApp()" title="تكبير / استعادة" class="hover:bg-gray-700 hover:text-white text-gray-300 w-8 h-7 rounded flex items-center justify-center transition cursor-pointer"><i class="fa-regular fa-square text-xs"></i></button>
+            <button onclick="closeApp()" title="إغلاق" class="hover:bg-red-600 hover:text-white text-gray-300 w-8 h-7 rounded flex items-center justify-center transition cursor-pointer"><i class="fa-solid fa-xmark text-sm"></i></button>
+        </div>
+    </div>
+
+    <!-- شريط الأدوات الرئيسي -->
+    <div class="toolbar-bg border-b border-gray-700/50 p-2 flex flex-col gap-2 flex-shrink-0 shadow-sm">
+        <div class="flex gap-2 items-center flex-wrap">
+            <button onclick="document.getElementById('file-upload').click()" class="bg-brand-primary hover:bg-brand-primaryHover text-white px-4 py-2 rounded shadow transition flex items-center gap-2 text-sm font-semibold">
+                <i class="fa-solid fa-file-import"></i> استيراد صور / PDF
+            </button>
+            <input type="file" id="file-upload" class="hidden" multiple accept="image/png, image/jpeg, image/jpg, image/webp, image/bmp, application/pdf" onchange="importFiles(event)">
+
+            <!-- قسم السكانر مع الوجهين والدقة DPI -->
+            <div class="flex items-center bg-gray-800 border border-gray-600 rounded">
+                <button onclick="loadScanners()" title="تحديث الأجهزة" class="px-2 py-2 text-gray-400 hover:text-brand-primary hover:bg-gray-700 transition border-l border-gray-600">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <select id="scanner-select" class="bg-transparent text-white text-xs px-2 py-2 outline-none cursor-pointer w-40 border-l border-gray-600 text-right">
+                    <option value="" class="bg-gray-800">اختيار الطابعة يدوياً</option>
+                </select>
+                <select id="scan-mode" class="bg-transparent text-gray-200 text-xs px-2 py-2 outline-none cursor-pointer border-l border-gray-600" title="نظام السحب (للفيدر)">
+                    <option value="simplex" class="bg-gray-800">وجه واحد</option>
+                    <option value="duplex" class="bg-gray-800" selected>وجهين (ذكي)</option>
+                </select>
+                <select id="scan-dpi" class="bg-transparent text-brand-accent text-xs px-2 py-2 outline-none cursor-pointer border-l border-gray-600 font-mono" title="دقة السحب DPI">
+                    <option value="150" class="bg-gray-800">150 DPI</option>
+                    <option value="200" class="bg-gray-800">200 DPI</option>
+                    <option value="300" class="bg-gray-800" selected>300 DPI</option>
+                    <option value="600" class="bg-gray-800">600 DPI</option>
+                </select>
+                <button onclick="simulateScanner()" class="bg-brand-primary hover:bg-brand-primaryHover text-white px-4 py-2 transition flex items-center gap-2 text-sm font-semibold rounded-l">
+                    <i class="fa-solid fa-print"></i> سحب ضوئي
+                </button>
+            </div>
+
+            <button onclick="quickScanCurrentPage()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded transition flex items-center gap-2 text-sm border border-gray-600" title="اكتشاف الورقة وتصحيح الميل والمنظور للصفحة المحددة">
+                <i class="fa-solid fa-bolt text-yellow-400"></i> سكان سريع
+            </button>
+
+            <div class="h-6 w-px bg-gray-600 mx-2"></div>
+            <button onclick="exportPDF()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded shadow transition flex items-center gap-2 text-sm font-semibold">
+                <i class="fa-solid fa-file-pdf"></i> حفظ PDF
+            </button>
+
+            <div class="h-6 w-px bg-gray-600 mx-2"></div>
+            <!-- قسم الإرسال المباشر عبر الإيميل -->
+            <div class="flex items-center bg-slate-900/90 border border-slate-700 rounded-lg p-1 shadow-inner gap-1.5">
+                <button onclick="configureSender()" class="hover:bg-slate-800 text-slate-300 hover:text-amber-400 px-3 py-2 rounded-md transition flex items-center justify-center text-sm cursor-pointer" title="إعدادات حساب المُرسل">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+                <div class="h-5 w-px bg-slate-700"></div>
+                <select id="email-department" class="bg-slate-900 text-slate-100 text-sm font-semibold px-3 py-1.5 rounded-md outline-none cursor-pointer w-56 hover:bg-slate-800 transition">
+                    <option value="">-- اختر الشعبة / الجهة --</option>
+                </select>
+                <button onclick="openAddDepartmentModal()" class="bg-slate-800 hover:bg-teal-600 text-teal-400 hover:text-white px-3 py-2 rounded-md transition flex items-center justify-center text-sm font-bold cursor-pointer" title="إضافة شعبة أو جهة جديدة">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <button onclick="editSelectedDepartment()" class="bg-slate-800 hover:bg-amber-600 text-amber-400 hover:text-white px-3 py-2 rounded-md transition flex items-center justify-center text-sm cursor-pointer" title="تعديل الجهة المحددة حالياً">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                <button onclick="deleteSelectedDepartment()" class="bg-slate-800 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-md transition flex items-center justify-center text-sm cursor-pointer" title="حذف الجهة المحددة حالياً">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+                <div class="h-5 w-px bg-slate-700"></div>
+                <select id="email-format" class="bg-slate-900 text-amber-300 text-sm px-2.5 py-1.5 rounded-md outline-none cursor-pointer hover:bg-slate-800 transition font-bold">
+                    <option value="pdf">PDF 📄</option>
+                    <option value="image">صور 🖼️</option>
+                </select>
+                <button onclick="sendDirectEmail()" class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-1.5 rounded-md transition flex items-center gap-2 text-sm font-bold shadow cursor-pointer">
+                    <i class="fa-solid fa-paper-plane"></i> إرسال
+                </button>
+            </div>
+        </div>
+
+        <div class="flex gap-2 items-center flex-wrap">
+            <button onclick="exportImages()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-images text-blue-400"></i> حفظ صور</button>
+            <button onclick="openPrintModal()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-print text-purple-400"></i> طباعة متقدمة</button>
+            <div class="h-6 w-px bg-gray-600 mx-2"></div>
+
+            <button onclick="newProject()" class="bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-file-circle-plus"></i> مشروع جديد</button>
+            <button onclick="saveProject()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-floppy-disk text-green-400"></i> حفظ المشروع</button>
+            <button onclick="openProjectModal()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-folder-open text-cyan-400"></i> فتح مشروع</button>
+            <button onclick="renameCurrentProject()" class="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 px-3 py-1.5 rounded transition flex items-center gap-2 text-sm font-bold"><i class="fa-solid fa-file-signature text-amber-400"></i> بيانات الكتاب</button>            <button onclick="deleteCurrentProject()" class="bg-red-900/40 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-trash"></i> حذف المشروع</button>
+            <button onclick="restoreProject()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition flex items-center gap-2 text-sm"><i class="fa-solid fa-clock-rotate-left text-orange-400"></i> استرجاع آخر عمل</button>
+        </div>
+    </div>
+
+    <!-- منطقة العمل -->
+    <div class="flex flex-1 overflow-hidden h-app">
+        <!-- الشريط الجانبي الأيمن: أدوات المعالجة -->
+        <div class="w-72 panel-bg flex flex-col border-l border-gray-800 shadow-lg z-10">
+            <div class="p-3 border-b border-gray-700/50 flex items-center gap-2 font-semibold"><i class="fa-solid fa-wand-magic-sparkles text-brand-accent"></i> أدوات المعالجة والقص</div>
+            <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-5 text-sm">
+                <div>
+                    <h3 class="text-gray-400 mb-2 text-xs uppercase tracking-wider">القص والحدود</h3>
+                    <div class="text-[10px] text-gray-500 mb-2">قص رباعي النقاط: كل زاوية مستقلة، مناسب للهوية والمستند المصوّر بزاوية.</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="toggleManualCrop()" id="btn-manual-crop" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded p-2 transition"><i class="fa-solid fa-crop-simple block mb-1"></i> قص يدوي</button>
+                        <button onclick="applyFastCrop()" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded p-2 transition"><i class="fa-solid fa-scissors block mb-1"></i> قص سريع</button>
+                        <button onclick="autoDetectDocument()" class="col-span-2 bg-brand-primary/20 text-brand-primary border border-brand-primary/50 hover:bg-brand-primary hover:text-white rounded p-2 transition"><i class="fa-solid fa-expand block mb-1"></i> اكتشاف تلقائي للورقة</button>
+                    </div>
+                    <div class="mt-2 text-[11px] text-gray-500 leading-5">في القص اليدوي: اسحب الإطار من الوسط، أو حرّك أي ضلع/زاوية، أو ارسم تحديداً جديداً فوق الصورة.</div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <h3 class="text-gray-400 text-xs uppercase tracking-wider">الألوان والإضاءة</h3>
+                    <div><div class="flex justify-between mb-1 text-xs"><span>السطوع</span><span id="val-brightness">0</span></div><input type="range" id="rng-brightness" min="-100" max="100" value="0" oninput="updateAdjustment('brightness', this.value)"></div>
+                    <div><div class="flex justify-between mb-1 text-xs"><span>التباين</span><span id="val-contrast">0</span></div><input type="range" id="rng-contrast" min="-100" max="100" value="0" oninput="updateAdjustment('contrast', this.value)"></div>
+                    <div><div class="flex justify-between mb-1 text-xs"><span>الحدة</span><span id="val-sharpness">0</span></div><input type="range" id="rng-sharpness" min="0" max="100" value="0" oninput="updateAdjustment('sharpness', this.value)"></div>
+                    <div><div class="flex justify-between mb-1 text-xs"><span>التشبع</span><span id="val-saturation">0</span></div><input type="range" id="rng-saturation" min="-100" max="100" value="0" oninput="updateAdjustment('saturation', this.value)"></div>
+                </div>
+
+                <div>
+                    <label class="flex items-center gap-2 cursor-pointer bg-gray-800/50 p-2 rounded border border-gray-700 hover:bg-gray-700 transition">
+                        <input type="checkbox" id="chk-cleanbg" class="w-4 h-4 accent-brand-primary text-brand-primary bg-gray-700 border-gray-600 rounded" onchange="updateAdjustment('cleanBackground', this.checked)">
+                        <span>تنظيف الخلفية والظلال</span>
+                    </label>
+                </div>
+
+                <div>
+                    <h3 class="text-gray-400 mb-2 text-xs uppercase tracking-wider">الفلاتر الجاهزة</h3>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <button onclick="applyFilter('none')" id="flt-none" class="bg-brand-primary text-white border border-gray-600 rounded py-1.5 transition">أصلي</button>
+                        <button onclick="applyFilter('bw')" id="flt-bw" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded py-1.5 transition">أبيض وأسود</button>
+                        <button onclick="applyFilter('document')" id="flt-document" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded py-1.5 transition">مستند</button>
+                        <button onclick="applyFilter('gray')" id="flt-gray" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded py-1.5 transition">رمادي</button>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-4 border-t border-gray-800">
+                    <button onclick="resetCurrentPage()" class="w-full bg-red-900/30 text-red-400 border border-red-900 hover:bg-red-600 hover:text-white rounded py-2 transition text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-left"></i> إعادة ضبط الصفحة
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- منطقة العرض المركزية -->
+        <div class="flex-1 flex flex-col relative bg-gray-950/50" id="drop-zone">
+            <div class="h-10 bg-black/40 flex justify-between items-center px-4 text-sm border-b border-gray-800 z-10 backdrop-blur-sm">
+                <div id="preview-info" class="text-gray-400">لا توجد صفحات</div>
+                <div class="flex gap-2" id="canvas-toolbar" style="display:none;">
+                    <button onclick="rotatePage()" class="bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded text-white border border-gray-600 transition flex gap-1 items-center"><i class="fa-solid fa-rotate-right"></i> تدوير</button>
+                    <button onclick="confirmCrop()" id="btn-confirm-crop" class="bg-brand-primary hover:bg-brand-primaryHover px-3 py-1 rounded text-white transition flex gap-1 items-center" style="display:none;"><i class="fa-solid fa-check"></i> حفظ القص</button>
+                </div>
+            </div>
+
+            <div class="flex-1 relative overflow-auto flex items-center justify-center p-4" id="canvas-container">
+                <div id="empty-state" class="text-center text-gray-500 flex flex-col items-center justify-center w-full h-full border-2 border-dashed border-gray-700 rounded-xl">
+                    <i class="fa-solid fa-file-arrow-up text-6xl mb-4 text-gray-600"></i>
+                    <p class="text-lg">اسحب الصور أو ملفات PDF هنا أو اضغط على استيراد</p>
+                </div>
+                <canvas id="main-canvas" class="max-w-full max-h-full shadow-2xl object-contain" style="display:none; touch-action:none;"></canvas>
+                <div id="crop-overlay">
+                    <svg id="crop-svg" aria-hidden="true">
+                        <polygon id="crop-polygon" points="0,0 0,0 0,0 0,0"></polygon>
+                        <line id="crop-grid-1" class="crop-grid-line" x1="0" y1="0" x2="0" y2="0"></line>
+                        <line id="crop-grid-2" class="crop-grid-line" x1="0" y1="0" x2="0" y2="0"></line>
+                        <line id="crop-grid-3" class="crop-grid-line" x1="0" y1="0" x2="0" y2="0"></line>
+                        <line id="crop-grid-4" class="crop-grid-line" x1="0" y1="0" x2="0" y2="0"></line>
+                    </svg>
+                    <div class="crop-handle" data-point="0"></div><div class="crop-handle" data-point="1"></div>
+                    <div class="crop-handle" data-point="2"></div><div class="crop-handle" data-point="3"></div>
+                    <div class="crop-point-label" data-label="0">1</div><div class="crop-point-label" data-label="1">2</div>
+                    <div class="crop-point-label" data-label="2">3</div><div class="crop-point-label" data-label="3">4</div>
+                    <div class="crop-help">حرّك كل نقطة بحرية • اسحب داخل الورقة لتحريك الشكل</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي الأيسر: قائمة الصفحات -->
+        <div class="w-64 panel-bg flex flex-col border-r border-gray-800 shadow-lg z-10">
+            <div class="p-3 border-b border-gray-700/50 flex items-center justify-between font-semibold">
+                <div class="flex items-center gap-2"><i class="fa-regular fa-file-image text-blue-400"></i><span id="pages-count-title">الصفحات • 0</span></div>
+                <button onclick="clearAllPages()" class="text-xs text-red-400 hover:text-red-300 transition">مسح الكل</button>
+            </div>
+            <div id="thumbnails-container" class="flex-1 overflow-y-auto p-2 flex flex-col gap-2 relative"></div>
+            <div class="p-2 border-t border-gray-800 grid grid-cols-2 gap-2" id="page-controls" style="display:none;">
+                <button onclick="duplicateCurrentPage()" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded py-1.5 text-xs transition"><i class="fa-solid fa-copy mr-1"></i> تكرار</button>
+                <button onclick="deleteCurrentPage()" class="bg-red-900/30 text-red-400 border border-red-900 hover:bg-red-600 hover:text-white rounded py-1.5 text-xs transition"><i class="fa-solid fa-trash mr-1"></i> حذف</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- شريط الحالة السفلي -->
+    <div class="h-6 bg-brand-dark border-t border-gray-800 flex items-center px-3 text-xs text-brand-primary flex-shrink-0">
+        <span id="statusText">● جاهز للاستخدام الفعلي</span>
+    </div>
+
+    <!-- نافذة المشاريع -->
+    <div id="projects-modal" class="fixed inset-0 bg-black/80 z-[60] hidden items-center justify-center modal-backdrop">
+        <div class="panel-bg w-[650px] max-w-[95%] max-h-[85vh] rounded-xl shadow-2xl border border-gray-700 flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-bold"><i class="fa-solid fa-folder-open text-cyan-400 ml-2"></i>المشاريع المحفوظة</h2>
+                <button onclick="closeProjectModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <div id="projects-list" class="p-3 flex-1 overflow-y-auto space-y-2"></div>
+            <div class="p-3 border-t border-gray-700 flex justify-end">
+                <button onclick="closeProjectModal()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة الطباعة -->
+    <div id="print-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-dark-panel border border-dark-border rounded-xl w-11/12 max-w-5xl h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-dark-border flex justify-between items-center bg-slate-900/50">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-print text-brand-primary"></i> استوديو طباعة وتخطيط المستمسكات (بالسنتيمتر cm)
+                </h2>
+                <button type="button" onclick="closePrintModal()" class="text-slate-400 hover:text-white text-2xl px-2 cursor-pointer">&times;</button>
+            </div>
+            
+            <div class="flex-1 flex overflow-hidden">
+                <!-- لوحة الإعدادات والقياسات -->
+                <div class="w-80 border-l border-dark-border p-4 overflow-y-auto space-y-4 bg-dark-bg/40 text-sm">
+                    <div class="bg-slate-800/60 p-3 rounded-lg border border-slate-700">
+                        <label class="block text-slate-300 mb-1 font-semibold">عدد الصور / البطاقات بالورقة</label>
+                        <div id="print-img-count" class="bg-slate-900 p-2 rounded text-center font-bold text-lg text-brand-accent">0</div>
+                    </div>
+
+                    <!-- قوالب القياسات الجاهزة -->
+                    <div class="space-y-2">
+                        <label class="block text-slate-300 font-semibold">نوع المستمسك (القياس الحقيقي)</label>
+                        <div class="grid grid-cols-1 gap-1.5">
+                            <button type="button" onclick="applyPrintPreset('cm', 8.6, 5.4, 2, 12, 6)" class="bg-brand-primary/20 hover:bg-brand-primary/40 border border-brand-primary/50 text-white py-2 px-3 rounded text-right flex justify-between items-center transition cursor-pointer">
+                                <span>🪪 بطاقة وطنية / كي كارد</span>
+                                <span class="text-xs font-mono bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">8.6 × 5.4 سم</span>
+                            </button>
+                            <button onclick="applyGoldenSquare()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm flex items-center justify-center gap-2 mb-2">
+                               🌟 المربع الذهبي (تموينية + 4 هويات)
+                            </button>
+                            <button type="button" onclick="applyPrintPreset('cm', 10.2, 6.0, 2, 12, 6)" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white py-2 px-3 rounded text-right flex justify-between items-center transition cursor-pointer">
+                                <span>🏠 بطاقة سكن / معلومات</span>
+                                <span class="text-xs font-mono bg-slate-900 px-1.5 py-0.5 rounded text-amber-400">10.2 × 6.0 سم</span>
+                            </button>
+                            <button type="button" onclick="applyPrintPreset('grid', 19.0, 27.7, 1, 5, 0)" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white py-2 px-3 rounded text-right flex justify-between items-center transition cursor-pointer">
+                                <span>📄 مستند كامل (ورقة A4)</span>
+                                <span class="text-xs font-mono bg-slate-900 px-1.5 py-0.5 rounded text-sky-400">ملء الصفحة</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- التحكم اليدوي بالسنتيمتر -->
+                    <div class="grid grid-cols-2 gap-3 bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">العرض (cm)</label>
+                            <input type="number" id="print-card-w" value="8.6" step="0.1" min="2" max="21" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white text-center font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">الارتفاع (cm)</label>
+                            <input type="number" id="print-card-h" value="5.4" step="0.1" min="2" max="29" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white text-center font-bold">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">الأعمدة (بصف بعض)</label>
+                            <input type="number" id="print-cols" value="2" min="1" max="4" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">اتجاه الورقة</label>
+                            <select id="print-orientation" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white">
+                                <option value="portrait">عمودي (Portrait)</option>
+                                <option value="landscape">أفقي (Landscape)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2 border-t border-slate-800">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">الهامش العلوي</span>
+                                <span id="val-print-margin" class="text-brand-accent font-mono">12 mm</span>
+                            </div>
+                            <input type="range" id="print-margin" value="12" min="2" max="50" class="w-full accent-brand-primary">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">المسافة بين البطاقات</span>
+                                <span id="val-print-gap" class="text-brand-accent font-mono">6 mm</span>
+                            </div>
+                            <input type="range" id="print-spacing" value="6" min="1" max="25" class="w-full accent-brand-primary">
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="print-rows" value="4">
+                    <input type="hidden" id="print-paper" value="A4">
+                </div>
+
+                <!-- شاشة معاينة ورقة الـ A4 -->
+                <div class="flex-1 bg-slate-950 p-6 flex items-center justify-center overflow-auto">
+                    <div id="print-preview-paper" class="bg-white shadow-2xl relative transition-all duration-200"></div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-dark-border flex justify-between items-center bg-slate-900/50">
+                <div class="flex gap-3">
+                    <button type="button" id="btn-execute-print" onclick="executePrint()" class="bg-brand-accent hover:bg-emerald-500 text-slate-950 font-bold py-2 px-6 rounded-lg transition flex items-center gap-2 shadow-lg cursor-pointer">
+                        <i class="fa-solid fa-print"></i> طباعة الورقة الآن
+                    </button>
+                    <button type="button" onclick="closePrintModal()" class="bg-slate-700 hover:bg-slate-600 text-white py-2 px-5 rounded-lg transition cursor-pointer">إغلاق</button>
+                </div>
+                <span class="text-xs text-slate-400"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+</body>
+</html>

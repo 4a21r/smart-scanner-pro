@@ -1,0 +1,53 @@
+{
+  "name": "smart-scanner",
+  "version": "4.0.0",
+  "description": "Smart Scanner Pro Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "setup-offline": "node setup-offline.js",
+    "start": "electron .",
+    "build": "electron-builder -w"
+  },
+  "author": "Abdulrahman",
+  "license": "ISC",
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  
+  },
+  "build": {
+    "appId": "com.abdulrahman.smartscanner",
+    "productName": "Smart Scanner Pro",
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "style.css",
+      "vendor/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "extraResources": [
+      {
+        "from": "scanner_bin",
+        "to": "scanner_bin"
+      }
+    ]
+  }
+}
